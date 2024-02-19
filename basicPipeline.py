@@ -30,6 +30,7 @@ import numpy as np
 from tqdm import tqdm
 import nibabel as nib
 import random
+
 MONGOHOST = "arctrdcn018.rs.gsu.edu"
 DBNAME = "MindfulTensors"
 COLLECTION = "HCP"
@@ -96,18 +97,6 @@ def mycollate_full(x):
     transform_pipeline = RandomConvexTransform(transforms_list, probs)
     return amcollate(x, transform_pipeline, labelname=LABELNOW)
 
-
-
-# Create a dataset
-monai_dataset = MongoDataset(
-    range(num_examples),
-    mtransform,
-    None,
-    id=INDEX_ID,
-    fields=VIEWFIELDS,
-)
-
-tsampler = MBatchSampler(monai_dataset, batch_size=1)
 def amcollate(mlist,transform_pipeline,labelname="sublabel",inputsize=(256, 256, 256),labelsize=(256, 256, 256)):
     # def preprocess_image(img, qmin=0.01, qmax=0.99):
     #     """Quartile interval preprocessing"""
@@ -151,14 +140,26 @@ def amcollate(mlist,transform_pipeline,labelname="sublabel",inputsize=(256, 256,
         cube = torch.vstack(
             [torch.from_numpy(sub["subdata"]).float() for sub in mdict[subj]]
         )
+
+        ###Something wrong here with cube###
         data = transform_pipeline(cube)
         data = preprocess_image(data).unsqueeze(0)
         expected_output = preprocess_image(cube).unsqueeze(0)
-        # apply a set of transformation as defined by the transformed pipeline parameter
 
     return data.unsqueeze(1), expected_output
 
-# Create a DataLoader
+
+#Create Dataset
+monai_dataset = MongoDataset(
+    range(num_examples),
+    mtransform,
+    None,
+    id=INDEX_ID,
+    fields=VIEWFIELDS,
+)
+#Create Sampler
+tsampler = MBatchSampler(monai_dataset, batch_size=1)
+#Create Loader
 tdataloader = DataLoader(
     monai_dataset,
     sampler=tsampler,
@@ -169,6 +170,7 @@ tdataloader = DataLoader(
     prefetch_factor=3,
     num_workers=1,
 )
+
 img = nib.load("./t1_c.nii.gz")
 
 for i, (x,y) in tqdm(enumerate(tdataloader)):
